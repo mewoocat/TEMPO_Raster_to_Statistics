@@ -46,25 +46,22 @@
 from netCDF4 import Dataset
 import numpy as np
 import sys
-sys.path.insert(0,'/home/ghost/Obsidian Vault/Work/Research Position/TEMPO Proxy Codes/')
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cartopy.io.shapereader as shpreader
-import colormaps as cmaps
 import pandas as pd
 import glob
 import geopandas as gpd
 from shapely.geometry import Point
 from shapely.geometry import Polygon
-from pyresample import geometry,kd_tree
 from datetime import datetime
 
 
 ### Variables ###
 # Data file
 #tempoFile = "/home/ghost/Obsidian Vault/Work/Research Position/data/TEMPO_O3PROF-PROXY_L2_V01_20130831T212359Z_S013G05.nc"
-tempoFile = "/home/ghost/Obsidian Vault/Work/Research Position/data/TEMPO_O3PROF-PROXY_L2_V01_20130831T154158Z_S007G08.nc"
+tempoFile = "/home/ghost/Downloads/data/TEMPO_NO2-PROXY_L3_V01_20130714T180000Z_S010.nc"
 product = "O3PROF"
 coltype = 'trop'
 cldthresh = 0.3
@@ -77,14 +74,14 @@ geoMode = "counties"
 ##################################################################
 
 # Read in county shape file as geoDataFrame
-counties = gpd.read_file('data/cb_2018_us_county_500k/cb_2018_us_county_500k.shp')
+counties = gpd.read_file('assets/cb_2018_us_county_500k/cb_2018_us_county_500k.shp')
 
 
 ##################################################################
 ### Census tracts
 ##################################################################
 
-census_tract_dir = "/home/ghost/Obsidian Vault/Work/Research Position/data/census_tracts/"
+census_tract_dir = "assets/census_tracts/"
 tract_folders = np.sort(glob.glob(census_tract_dir + '*/'))
 # Array of census tract shape files as GeoDataFrames
 tracts = []
@@ -97,6 +94,8 @@ tractCombined = pd.concat(tracts)
 
 #pd.set_option('display.max_rows', None)
 print(tractCombined)
+
+
 
 if geoMode == "counties":
     geoContext = counties
@@ -219,10 +218,19 @@ def main():
         combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['NAME'])
         combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['varP'])
         
-        # Convert variable units  
+        # Convert variable units (Very terrible estimate, don't use!)
         # 2.69matplotlib.patches DU equals 0.001 ppm  From: https://www.ablison.com/what-is-a-dobson-unit-du/
         # 2690 DU equals 1 ppm 
-        combinedGransGDFInCounties["varP_PPM"] = combinedGransGDFInCounties['varP'] / 2690
+        #combinedGransGDFInCounties["varP_PPM"] = combinedGransGDFInCounties['varP'] / 2690
+        
+        # Convert variable units from DU to ppb for 0-2 km ozone product
+        # Method:
+        # 1 DU = 2.69 x 10^16 molecules / cm2; Use this to convert from DU to molecules / cm2.
+        # 2 Then using our knowledge of the 0-2 km layer, we can divide the result from (1) by 2 km (or 200000 cm) to get a result in molecules / cm3
+        # 3Next, use the relation on the cheat sheet here (https://cires1.colorado.edu/jimenez-group/Press/2015.05.22-Atmospheric.Chemistry.Cheat.Sheet.pdf) to convert to ppb.  Relation 1 ppb = 2.46 x 10^10 molecules / cm3. 
+
+        combinedGransGDFInCounties["varP_PPB"] = ((combinedGransGDFInCounties['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+
 
         # Raw data points without statistics
         raw = combinedGransGDFInCounties
@@ -282,7 +290,10 @@ def main():
         intersectionGDF = intersectionGDF.dropna(subset=['varP'])
 
         # Convert DU to PPM
-        intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
+        #intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
+        
+        # Convert DU to PPB
+        intersectionGDF["varP_PPB"] = ((intersectionGDF['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
         
         GDF = intersectionGDF
 
@@ -325,10 +336,12 @@ def main():
     ### Outputs
     ##################################################################
     
+    currentTime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
+
     # Output data as csv
     #raw.to_csv(saveDir + "raw_out.csv")
     #polygonGDF.to_csv(saveDir + "polygons.csv")
-    GDF.to_csv(saveDir + "output.csv")
+    GDF.to_csv(saveDir + "output__" + statsType + currentTime +".csv")
 
     print(f"Saved output to {saveDir}")
 

@@ -56,9 +56,9 @@ Parameters:
 - Data from the TEMPO mission is recieved in a NetCDF format, which contains latitude and longitude points assciated with the level of a given product in Dobson units.
 - The program recieves a directory containing the NetCDF files to analyze.  The data points along with the products levels from these files are combined into a GeoDataFrame from the GeoPandas python library.
 - County or Census Tract shape files are imported into the program and converted into a GeoDataFrame containing an entry for each region in the shape files.
-- The data and geographic GeoDataFrames are anaylzed for intersections, and a specified statistic is performed on the product values for each geogrphic region.
-- Additionally the latitude and longitude values of the points in a region are collected and stored in the resulting combined GeoDataFrame.
-- Finally, the GeoDataFrame is converted to a CSV file and exported the path specified.
+- The data and geographic GeoDataFrames are anaylzed for intersections, and a specified statistic is performed on the product values for each geographic region.
+- Additionally, the latitude and longitude values of the points in a region are collected and stored in the resulting combined GeoDataFrame.
+- Finally, the GeoDataFrame is converted to a CSV file and exported to the path specified.
 
 
 ### Example Output

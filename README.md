@@ -35,17 +35,17 @@ Parameters:
            midday
            whole
 
-   start_date:
+   - start_date:
        Date and time to start the analysis
        Format
            YYYYMMDDHH
    
-   end_date:
+   - end_date:
        Date and time to end the analysis
        Format
            YYYYMMDDHH
 
-   stats_type:
+   - stats_type:
        Type of statistics to run
        Valid values
            mean
@@ -62,4 +62,4 @@ Parameters:
 
 
 ### Example Output
-![Example output](https://github.com/mewoocat/TEMPO_Raster_to_Statistics/blob/main/output.png))
+![Example output](https://github.com/mewoocat/TEMPO_Raster_to_Statistics/blob/main/output.png)

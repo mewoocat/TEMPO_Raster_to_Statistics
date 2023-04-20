@@ -60,3 +60,6 @@ Parameters:
 - Additionally the latitude and longitude values of the points in a region are collected and stored in the resulting combined GeoDataFrame.
 - Finally, the GeoDataFrame is converted to a CSV file and exported the path specified.
 
+
+### Example Output
+![[output.png]]

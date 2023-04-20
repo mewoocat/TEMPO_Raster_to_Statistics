@@ -62,4 +62,4 @@ Parameters:
 
 
 ### Example Output
-![[output.png]]
+![Example output](https://github.com/mewoocat/TEMPO_Raster_to_Statistics/blob/main/output.png))

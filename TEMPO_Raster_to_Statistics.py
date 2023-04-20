@@ -1,7 +1,7 @@
 ### Readme ###
 #
 # Example usage:
-#       python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
+#       python TEMPO_Raster_to_Statistics.py "/home/ghost/Downloads/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
 
 # Parameters:
 #   python geoTEMPOZip.py path_to_data_dir path_to_save_dir product mode start_date end_date stats_type
@@ -55,6 +55,7 @@ import glob
 import geopandas as gpd
 from shapely.geometry import Point
 from shapely.geometry import Polygon
+from pyresample import geometry
 from datetime import datetime
 
 
@@ -80,20 +81,25 @@ counties = gpd.read_file('assets/cb_2018_us_county_500k/cb_2018_us_county_500k.s
 ##################################################################
 ### Census tracts
 ##################################################################
+def constructCensusTracts():
+    print("Constructing cenus track data structure...")
+    census_tract_dir = "assets/census_tracts/"
+    tract_folders = np.sort(glob.glob(census_tract_dir + '*/'))
+    # Array of census tract shape files as GeoDataFrames
+    tracts = []
+    for tract_folder in tract_folders:
+        tract_shp = glob.glob(tract_folder + '*.shp')
+        tract_GDF = gpd.read_file(tract_shp[0])
+        tracts.append(tract_GDF)
 
-census_tract_dir = "assets/census_tracts/"
-tract_folders = np.sort(glob.glob(census_tract_dir + '*/'))
-# Array of census tract shape files as GeoDataFrames
-tracts = []
-for tract_folder in tract_folders:
-    tract_shp = glob.glob(tract_folder + '*.shp')
-    tract_GDF = gpd.read_file(tract_shp[0])
-    tracts.append(tract_GDF)
+    tractCombined = pd.concat(tracts)
 
-tractCombined = pd.concat(tracts)
+    print("Finished constructing cenus track data structure.")
 
-#pd.set_option('display.max_rows', None)
-print(tractCombined)
+    #pd.set_option('display.max_rows', None)
+    #print(tractCombined)
+    return tractCombined
+
 
 
 
@@ -101,6 +107,9 @@ if geoMode == "counties":
     geoContext = counties
 elif geoMode == "census_tract":
     geoContext = tractCombined
+    tractCombined = constructCensusTracts()
+    print(tractCombined)
+
 else:
     geoContext = "We have a problem"
 
@@ -199,7 +208,7 @@ def main():
                 # For some reason the pixel_var array doesn't have commas
                 pixel_var = np.concatenate((pixel_var, var[i]))
 
-            dataFrame = pd.DataFrame({'lon':pixel_lon, 'lat':pixel_lat, 'varP':pixel_var})
+            dataFrame = pd.DataFrame({'LON':pixel_lon, 'LAT':pixel_lat, 'DU':pixel_var, 'PRODUCT':long_name})
             #print(dataFrame)
      
             GeoDataFrames_granules.append(dataFrame)
@@ -209,14 +218,14 @@ def main():
         combinedGransDF = pd.concat(GeoDataFrames_granules)
 
         # Convert combined dataframe into a geodataframe
-        combinedGransGDF = gpd.GeoDataFrame(combinedGransDF, geometry=gpd.points_from_xy(combinedGransDF.lon, combinedGransDF.lat), crs=geoContext.crs)
+        combinedGransGDF = gpd.GeoDataFrame(combinedGransDF, geometry=gpd.points_from_xy(combinedGransDF.LON, combinedGransDF.LAT), crs=geoContext.crs)
         
         # Create geodataframe sorted by county
         # Doesn't need the tools portion?
         combinedGransGDFInCounties = gpd.tools.sjoin(combinedGransGDF, geoContext, predicate="within", how="left")
         # Drop rows that don't have a name or var value
         combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['NAME'])
-        combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['varP'])
+        combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['DU'])
         
         # Convert variable units (Very terrible estimate, don't use!)
         # 2.69matplotlib.patches DU equals 0.001 ppm  From: https://www.ablison.com/what-is-a-dobson-unit-du/
@@ -229,7 +238,7 @@ def main():
         # 2 Then using our knowledge of the 0-2 km layer, we can divide the result from (1) by 2 km (or 200000 cm) to get a result in molecules / cm3
         # 3Next, use the relation on the cheat sheet here (https://cires1.colorado.edu/jimenez-group/Press/2015.05.22-Atmospheric.Chemistry.Cheat.Sheet.pdf) to convert to ppb.  Relation 1 ppb = 2.46 x 10^10 molecules / cm3. 
 
-        combinedGransGDFInCounties["varP_PPB"] = ((combinedGransGDFInCounties['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+        combinedGransGDFInCounties["PPB"] = ((combinedGransGDFInCounties['DU'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
 
 
         # Raw data points without statistics
@@ -281,20 +290,20 @@ def main():
         polygonVar = polygonVar2
 
         # Create GeoDataFrame of pixel polygons
-        polygonDF = pd.DataFrame({'varP':polygonVar})
+        polygonDF = pd.DataFrame({'DU':polygonVar})
         polygonGDF = gpd.GeoDataFrame(polygonDF, geometry=pixel_polygons, crs=geoContext.crs)
 
         # Find pixel polygon with county intersections
         intersectionGDF = gpd.overlay(polygonGDF, geoContext, how='union')
         intersectionGDF = intersectionGDF.dropna(subset=['NAME'])
-        intersectionGDF = intersectionGDF.dropna(subset=['varP'])
+        intersectionGDF = intersectionGDF.dropna(subset=['DU'])
 
         # Convert DU to PPM
         #intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
         
         # Convert DU to PPB
-        intersectionGDF["varP_PPB"] = ((intersectionGDF['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
-        
+        intersectionGDF["PPB"] = ((intersectionGDF['DU'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+
         GDF = intersectionGDF
 
         print("Finish intersection calculations.")
@@ -315,22 +324,30 @@ def main():
         print("Calculating mean...")
         # Group rows by county and calculate mean of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].mean()
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='mean')
+
+        # Combines instances of each county into one row
+        # Applys statistic to DU and PPB rows
+        # Converts lat and lon point values into lists of all points within a given county
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'mean', 'PPB':'mean', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
 
     if (statsType == "max"):
         print("Calculating max...")
         # Group rows by county and calculate max of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].max()
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='mean')
+        #GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='max')
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'max', 'PPB':'max', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
         
     if (statsType == "median"):
         print("Calculating max...")
         # Group rows by county and calculate max of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].max()
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='median')
+        #GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='median')
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'median', 'PPB':'median', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
 
     print(GDF.head())
 
+
+    GDF = GDF.rename(columns={"geometry": "COUNTY_GEOMETRY", "LAT": "LAT_POINTS", "LON": "LON_POINTS"})
     
     ##################################################################
     ### Outputs
@@ -339,7 +356,7 @@ def main():
     currentTime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
 
     # Output data as csv
-    #raw.to_csv(saveDir + "raw_out.csv")
+    raw.to_csv(saveDir + "raw_out.csv")
     #polygonGDF.to_csv(saveDir + "polygons.csv")
     GDF.to_csv(saveDir + "output__" + statsType + currentTime +".csv")
 
@@ -605,8 +622,80 @@ def arrayToFile(array, filename):
     file.close()
 
 
+def testing():
+
+    print("@ testing...")
+
+
+    sys.path.insert(0,'/home/ghost/Obsidian Vault/Work/Research Position/TEMPO Proxy Codes/')
+    import colormap_generator
+    import colormaps as cmaps
+
+
+    gridres = 0.05
+
+    ### Latest grid specifications for TEMPO L3 products as of 12/2022
+    ## 0.05 degree grid spacing
+    minlat, maxlat = 17.025, 63.975
+    minlon, maxlon = -154.975, -24.475
+
+
+    flats = np.linspace(minlat,maxlat,num=int(((maxlat-minlat)/gridres)+1),endpoint=True)
+    flons = np.linspace(minlon,maxlon,num=int(((maxlon-minlon)/gridres)+1),endpoint=True)
+
+    print("flats")
+    print(flats)
+    print("flons")
+    print(flons)
+     
+
+    numlats = len(flats)
+    numlons = len(flons)
+
+
+    gridlon = np.resize(flons,(numlats,numlons))
+    gridlat = np.resize(flats,(numlons,numlats))
+    gridlat = np.transpose(gridlat)
+
+    print("gridlon")
+    print(gridlon)
+    print(np.shape(gridlon))
+
+
+    grid_fixed = geometry.GridDefinition(lons=gridlon,lats=gridlat)
+
+    print("grid_fixed")
+    print(grid_fixed)
+
+
+    ### Grid for pcolormesh plotting #################
+    flats_d = np.linspace(minlat-(gridres/2),maxlat+(gridres/2),num=int(((maxlat-minlat)/gridres)+2),endpoint=True)
+    flons_d = np.linspace(minlon-(gridres/2),maxlon+(gridres/2),num=int(((maxlon-minlon)/gridres)+2),endpoint=True)
+
+    print("flats_d")
+    print(flats_d)
+    print("flons_d")
+    print(flons_d)
+
+
+    #flats = np.linspace(beglat-(gridres/2),endlat-(gridres/2),num=((endlat-beglat)/gridres)+1,endpoint=True)
+    #flons = np.linspace(beglon+(gridres/2),endlon+(gridres/2),num=((endlon-beglon)/gridres)+1,endpoint=True)
+     
+
+    numlats = len(flats_d)
+    numlons = len(flons_d)
+     
+
+    gridlon_mesh = np.resize(flons_d,(numlats,numlons))
+    gridlat_mesh = np.resize(flats_d,(numlons,numlats))
+    gridlat_mesh = np.transpose(gridlat_mesh)
+
+    print(gridlat_mesh)
+
+
 ##################################################################
 ### Run main function
 ##################################################################
 
 main()
+#testing()

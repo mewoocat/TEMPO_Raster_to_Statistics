@@ -15,9 +15,7 @@
 - shapely
 - datetime
 
-### Usage
-python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
-
+### Usage 
 ##### Parameters:
 - python geoTEMPOZip.py path_to_data_dir path_to_save_dir product mode start_date end_date stats_type
     - path_to_data_dir:
@@ -29,12 +27,12 @@ python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research P
     - product:
         - Product to analyze
         - Valid values
-            - "O3PROF"
+            - O3PROF
 
     - mode:
         - Mode to anaylze with
         - Valid values
-           - "single"
+           - single
            - "midday"
            - "whole"
 
@@ -54,6 +52,9 @@ python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research P
            - "mean"
            - "max"
            - "median"
+
+##### Example
+- `python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean`
 
 ### Methods
 - Data from the TEMPO mission is recieved in a NetCDF format, which contains latitude and longitude points assciated with the level of a given product in Dobson units.

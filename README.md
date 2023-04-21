@@ -17,7 +17,7 @@
 
 ### Usage 
 ##### Parameters:
-- python geoTEMPOZip.py path_to_data_dir path_to_save_dir product mode start_date end_date stats_type
+- python  geoTEMPOZip.py  path_to_data_dir  path_to_save_dir  product mode  start_date  end_date  stats_type
     - path_to_data_dir:
        - File path to location of granules to analyze
 

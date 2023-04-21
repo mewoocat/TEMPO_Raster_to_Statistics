@@ -26,31 +26,31 @@ Parameters:
     - product:
         - Product to analyze
         - Valid values
-            - O3PROF
+            - "O3PROF"
 
     - mode:
         - Mode to anaylze with
-       Valid values
-           single
-           midday
-           whole
+        - Valid values
+           - "single"
+           - "midday"
+           - "whole"
 
    - start_date:
-       Date and time to start the analysis
-       Format
-           YYYYMMDDHH
+       - Date and time to start the analysis
+       - Format
+           - YYYYMMDDHH
    
    - end_date:
-       Date and time to end the analysis
-       Format
-           YYYYMMDDHH
+       - Date and time to end the analysis
+       - Format
+           - YYYYMMDDHH
 
    - stats_type:
-       Type of statistics to run
-       Valid values
-           mean
-           max
-           median
+       - Type of statistics to run
+       - Valid values
+           - "mean"
+           - "max"
+           - "median"
 
 ### Methods
 - Data from the TEMPO mission is recieved in a NetCDF format, which contains latitude and longitude points assciated with the level of a given product in Dobson units.

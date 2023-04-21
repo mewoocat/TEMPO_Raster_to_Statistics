@@ -1,6 +1,9 @@
 # TEMPO_Raster_to_Statistics
 
-### Dependencies
+### Python Version
+- Python 3.10.10
+
+### Python Libraries Used
 - netCDF4
 - numpy
 - sys
@@ -15,7 +18,7 @@
 ### Usage
 python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
 
-Parameters:
+##### Parameters:
 - python geoTEMPOZip.py path_to_data_dir path_to_save_dir product mode start_date end_date stats_type
     - path_to_data_dir:
        - File path to location of granules to analyze

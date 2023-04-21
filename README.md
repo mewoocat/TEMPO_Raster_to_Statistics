@@ -54,7 +54,7 @@
            - "median"
 
 ##### Example
-- `python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean`
+- ```python TEMPO_Raster_to_Statistics.py "/home/ghost/Obsidian Vault/Work/Research Position/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean```
 
 ### Methods
 - Data from the TEMPO mission is recieved in a NetCDF format, which contains latitude and longitude points assciated with the level of a given product in Dobson units.

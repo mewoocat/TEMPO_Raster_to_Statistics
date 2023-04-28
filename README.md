@@ -1,7 +1,11 @@
 # TEMPO_Raster_to_Statistics
 
+---
+
 ### Python Version
 - Python 3.10.10
+
+---
 
 ### Python Libraries Used
 - netCDF4
@@ -16,11 +20,15 @@
 - datetime
 - pyresample
 
+---
+
 ### Setup
 - Install Python
 - Install libraries used above
 - Clone github repo
 - Gain access to L2 or L3 TEMPO data
+
+---
 
 ### Usage 
 ##### Parameters:
@@ -79,6 +87,8 @@
         - Either `2` or `3`
         - Set accordingly to input data level
 
+---
+
 ### Features
 - Read in a directory of .nc files at once
 - Select a time frame of granules for level 2 data
@@ -90,6 +100,8 @@
 - Process a single level 3 file with and without smoothing (Incomplete)
 - Plotting of data (Incomplete)
 
+---
+
 ### Methods
 - Data from the TEMPO mission is received in a NetCDF format, which contains latitude and longitude points associated with the level of a given product in DU.
 - The program recieves a directory containing the NetCDF files to analyze.  The data points along with the products levels from these files are combined into a GeoDataFrame from the GeoPandas python library.
@@ -97,6 +109,8 @@
 - The data and geographic GeoDataFrames are analyzed for intersections, and a specified statistic is performed on the product values for each geographic region.
 - Additionally, the latitude and longitude values of the points in a region are collected and stored in the resulting combined GeoDataFrame.
 - Finally, the GeoDataFrame is converted to a CSV file and exported to the path specified.
+
+---
 
 ### Design overview
 - Code sections
@@ -123,9 +137,12 @@
         - Functions
             - Functions used for plotting and data retrieval
 
+---
+
 ### What I learned
 - Initially going into this project I had little to no experience working with geospatial data.  The beginning phases mostly consisted of me reading an existing script, and trying to grasp some of the concepts and libraries used.  I browsed through the docs for many of these to learn how to implement the features.  From there I began pulling bits and pieces from it to form the start of this script here.  A lot of brainstorming occurred at this point and I started to implement some of my ideas.  I began to realize that I was trying to reinvent the wheel in many cases and found libraries that handled these tasks more efficiently and effectively.  The core data management library in use here is GeoPandas.  Discovering this allowed for a convenient method of processing the TEMPO data into a tabular form and then performing statistics.  To compared the data against geographic boundaries I learned of and used shape files.  In this case, shape files for U.S. counties and census tracts were implemented.  At this point the way a pixel of data is compared with a geographic is by whether the center point of the pixel lies within the boundary.  However I learned that this approach can make the data much less useful in areas with small geographic boundaries in relation to the pixel size.  I implemented a sort of smoothing feature which checks whether any point in a pixel overlaps with a geographic boundary.  The intent was to add weights to the data that would adjust the amount by how much area of overlap exists.  However, this has yet to be implemented. Overall, working on this project has been a very educational and fascinating experience.  I wish to have developed the project further, but I am relatively satisfied with the progress I have made.
 
+---
 
 ### Output
 - Output is in the form of a comma delimited csv file.

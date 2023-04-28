@@ -1,7 +1,7 @@
 ### Readme ###
 #
 # Example usage:
-#       python TEMPO_Raster_to_Statistics.py "/home/ghost/Downloads/data/scans/" "/home/ghost/Obsidian Vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
+#       python TEMPO_Raster_to_Statistics.py "/home/ghost/Downloads/data/scans/" "/home/ghost/obsidian_vault/Work/Research Position/outputs/" O3PROF single 2012083123 2015083123 mean
 
 # Parameters:
 #   python geoTEMPOZip.py path_to_data_dir path_to_save_dir product mode start_date end_date stats_type
@@ -17,7 +17,7 @@
 #       Valid values
 #           O3PROF
 #
-#   mode:
+#   mode: (Warning: Not implemented)
 #       Mode to anaylze with
 #       Valid values
 #           single
@@ -47,9 +47,9 @@ from netCDF4 import Dataset
 import numpy as np
 import sys
 import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
-import cartopy.feature as cfeature
-import cartopy.io.shapereader as shpreader
+#import cartopy.crs as ccrs
+#import cartopy.feature as cfeature
+#import cartopy.io.shapereader as shpreader
 import pandas as pd
 import glob
 import geopandas as gpd
@@ -57,18 +57,22 @@ from shapely.geometry import Point
 from shapely.geometry import Polygon
 from pyresample import geometry
 from datetime import datetime
+#from numba import jit
 
 
 ### Variables ###
 # Data file
-#tempoFile = "/home/ghost/Obsidian Vault/Work/Research Position/data/TEMPO_O3PROF-PROXY_L2_V01_20130831T212359Z_S013G05.nc"
-tempoFile = "/home/ghost/Downloads/data/TEMPO_NO2-PROXY_L3_V01_20130714T180000Z_S010.nc"
-product = "O3PROF"
+#tempoFile = "/home/ghost/Downloads/data/TEMPO_O3PROF-PROXY_L2_V01_20130831T212359Z_S013G05.nc"
+tempoFile = "/home/ghost/Downloads/data/L3/TEMPO_NO2-PROXY_L3_V01_20130714T180000Z_S010.nc"
+#tempoFile = "C:/Users/ghost/Downloads/TEMPO_NO2-PROXY_L3_V01_20130714T180000Z_S010.nc"
+#product = "O3PROF"
+#product = "NO2"
 coltype = 'trop'
 cldthresh = 0.3
 smooth = False
 # county or census_tract
 geoMode = "counties"
+level = 2
 
 ##################################################################
 ### counties
@@ -100,16 +104,15 @@ def constructCensusTracts():
     #print(tractCombined)
     return tractCombined
 
+#print(tractCombined)
 
 
 
 if geoMode == "counties":
     geoContext = counties
 elif geoMode == "census_tract":
-    geoContext = tractCombined
     tractCombined = constructCensusTracts()
-    print(tractCombined)
-
+    geoContext = tractCombined
 else:
     geoContext = "We have a problem"
 
@@ -208,7 +211,7 @@ def main():
                 # For some reason the pixel_var array doesn't have commas
                 pixel_var = np.concatenate((pixel_var, var[i]))
 
-            dataFrame = pd.DataFrame({'LON':pixel_lon, 'LAT':pixel_lat, 'DU':pixel_var, 'PRODUCT':long_name})
+            dataFrame = pd.DataFrame({'lon':pixel_lon, 'lat':pixel_lat, 'varP':pixel_var})
             #print(dataFrame)
      
             GeoDataFrames_granules.append(dataFrame)
@@ -218,14 +221,14 @@ def main():
         combinedGransDF = pd.concat(GeoDataFrames_granules)
 
         # Convert combined dataframe into a geodataframe
-        combinedGransGDF = gpd.GeoDataFrame(combinedGransDF, geometry=gpd.points_from_xy(combinedGransDF.LON, combinedGransDF.LAT), crs=geoContext.crs)
+        combinedGransGDF = gpd.GeoDataFrame(combinedGransDF, geometry=gpd.points_from_xy(combinedGransDF.lon, combinedGransDF.lat), crs=geoContext.crs)
         
         # Create geodataframe sorted by county
         # Doesn't need the tools portion?
         combinedGransGDFInCounties = gpd.tools.sjoin(combinedGransGDF, geoContext, predicate="within", how="left")
         # Drop rows that don't have a name or var value
         combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['NAME'])
-        combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['DU'])
+        combinedGransGDFInCounties = combinedGransGDFInCounties.dropna(subset=['varP'])
         
         # Convert variable units (Very terrible estimate, don't use!)
         # 2.69matplotlib.patches DU equals 0.001 ppm  From: https://www.ablison.com/what-is-a-dobson-unit-du/
@@ -238,7 +241,7 @@ def main():
         # 2 Then using our knowledge of the 0-2 km layer, we can divide the result from (1) by 2 km (or 200000 cm) to get a result in molecules / cm3
         # 3Next, use the relation on the cheat sheet here (https://cires1.colorado.edu/jimenez-group/Press/2015.05.22-Atmospheric.Chemistry.Cheat.Sheet.pdf) to convert to ppb.  Relation 1 ppb = 2.46 x 10^10 molecules / cm3. 
 
-        combinedGransGDFInCounties["PPB"] = ((combinedGransGDFInCounties['DU'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+        combinedGransGDFInCounties["varP_PPB"] = ((combinedGransGDFInCounties['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
 
 
         # Raw data points without statistics
@@ -254,59 +257,184 @@ def main():
         ### Generate GeoDataFrame from granules (Smoothing) 
         ##################################################################
 
-        print("Starting smoothing calculations...")
-        
-        # Get pixel bounds
-        geoData = get_latlon(tempoFile, "O3PROF", "corner")
-        lat_bounds = geoData['lat']
-        lon_bounds = geoData['lon']
+        # If data is level 2
+        if level == 2:
+            print("Starting smoothing calculations...")
+            
+            # Get pixel bounds
+            geoData = get_latlon(tempoFile, "O3PROF", "corner")
+            lat_bounds = geoData['lat']
+            lon_bounds = geoData['lon']
 
-        # 62976 is from 123 * 512
-        # 4 is each corner
-        pixel_lat_bounds = np.reshape(lat_bounds, (62976, 4))
-        pixel_lon_bounds = np.reshape(lon_bounds, (62976, 4))
+            # 62976 is from 123 * 512
+            # 4 is each corner
+            pixel_lat_bounds = np.reshape(lat_bounds, (62976, 4))
+            pixel_lon_bounds = np.reshape(lon_bounds, (62976, 4))
 
-        pixel_lat_bounds = np.reshape(pixel_lat_bounds, (62976, 4, 1))
-        pixel_lon_bounds = np.reshape(pixel_lon_bounds, (62976, 4, 1))
+            pixel_lat_bounds = np.reshape(pixel_lat_bounds, (62976, 4, 1))
+            pixel_lon_bounds = np.reshape(pixel_lon_bounds, (62976, 4, 1))
 
-        # Combine lon and lat into same array
-        polygon_bounds = np.concatenate((pixel_lon_bounds, pixel_lat_bounds), axis=2)
+            # Combine lon and lat into same array
+            polygon_bounds = np.concatenate((pixel_lon_bounds, pixel_lat_bounds), axis=2)
 
-        # Swap points 2 and 3 so the polygon renders correctly
-        polygon_bounds[:, [1,2], :] = polygon_bounds[:, [2,1], :]
+            # Swap points 2 and 3 so the polygon renders correctly
+            polygon_bounds[:, [1,2], :] = polygon_bounds[:, [2,1], :]
 
-        # Convert polygon_bounds into a list of polygons
-        pixel_polygons = np.array([])
-        for i in range(len(polygon_bounds)):
-            # Polygon rounds to 3 decimal
-            pixel_polygons=np.append(pixel_polygons,Polygon(polygon_bounds[i]))
+            # Convert polygon_bounds into a list of polygons
+            pixel_polygons = np.array([])
+            for i in range(len(polygon_bounds)):
+                # Polygon rounds to 3 decimal
+                pixel_polygons=np.append(pixel_polygons,Polygon(polygon_bounds[i]))
+               
+            # Associate pixel polygons with product variables
+            polygonVar = get_vardata(tempoFile, product)
+            polygonVar = polygonVar['data']
+            polygonVar2 = np.array([])
+            for i in range(len(polygonVar)):
+                polygonVar2 = np.concatenate((polygonVar2, polygonVar[i]))
+            polygonVar = polygonVar2
+
+            # Create GeoDataFrame of pixel polygons
+            polygonDF = pd.DataFrame({'varP':polygonVar})
+            polygonGDF = gpd.GeoDataFrame(polygonDF, geometry=pixel_polygons, crs=geoContext.crs)
+
+            # Find pixel polygon with county intersections
+            intersectionGDF = gpd.overlay(polygonGDF, geoContext, how='union')
+            intersectionGDF = intersectionGDF.dropna(subset=['NAME'])
+            intersectionGDF = intersectionGDF.dropna(subset=['varP'])
+
+            # Convert DU to PPM
+            #intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
+            
+            # Convert DU to PPB
+            intersectionGDF["varP_PPB"] = ((intersectionGDF['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+            
+            GDF = intersectionGDF
+
+            print("Finish intersection calculations.")
+
+        # If data is level 3
+        if level == 3:
+            print("Starting smoothing calculations...")
+            
+            # Get pixel bounds
+            geoData = get_latlon(tempoFile, "O3PROF", "center")
+            lat = geoData['lat']
+            lon = geoData['lon']
+
+            gridCenterOffset = 0.025 
            
-        # Associate pixel polygons with product variables
-        polygonVar = get_vardata(tempoFile, "O3PROF")
-        polygonVar = polygonVar['data']
-        polygonVar2 = np.array([])
-        for i in range(len(polygonVar)):
-            polygonVar2 = np.concatenate((polygonVar2, polygonVar[i]))
-        polygonVar = polygonVar2
+            # Resize lat and lon values
+            gridLon = np.resize(lon, (len(lat), len(lon)))
+            gridLat = np.resize(lat, (len(lon), len(lat)))
+            gridLat = np.transpose(gridLat)
+            print(np.shape(gridLon))
+            print(np.shape(gridLat))
 
-        # Create GeoDataFrame of pixel polygons
-        polygonDF = pd.DataFrame({'DU':polygonVar})
-        polygonGDF = gpd.GeoDataFrame(polygonDF, geometry=pixel_polygons, crs=geoContext.crs)
+            
+            # Experimenting with creating a grid of lat lon values 
+            grid = geometry.GridDefinition(lons=gridLon, lats=gridLat)
+            print(grid)
 
-        # Find pixel polygon with county intersections
-        intersectionGDF = gpd.overlay(polygonGDF, geoContext, how='union')
-        intersectionGDF = intersectionGDF.dropna(subset=['NAME'])
-        intersectionGDF = intersectionGDF.dropna(subset=['DU'])
+            gridLon = np.resize(gridLon, (2454340))
+            gridLat = np.resize(gridLat, (2454340))
+            print(gridLon)
+            print(gridLat)
+            print(np.shape(gridLon))
+            print(np.shape(gridLat))
+            
+            
+            # Create an array of polygons of the pixels using the center point and an offset
+            # Warning, very inefficient, takes several hours to run on my machine
+            """
+            grid_polygons = np.array([])
+            for i in (range(len(gridLon))):
+                print(i)
+                nw = (gridLon[i] - gridCenterOffset, gridLat[i] + gridCenterOffset)
+                ne = (gridLon[i] + gridCenterOffset, gridLat[i] + gridCenterOffset) 
+                se = (gridLon[i] + gridCenterOffset, gridLat[i] - gridCenterOffset)
+                sw = (gridLon[i] - gridCenterOffset, gridLat[i] - gridCenterOffset) 
+                cornerPoints = [nw, ne, se, sw]
+                #print(sw)
+                #print(cornerPoints)
+                grid_polygons = np.append(grid_polygons, Polygon(cornerPoints))
+            """
 
-        # Convert DU to PPM
-        #intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
-        
-        # Convert DU to PPB
-        intersectionGDF["PPB"] = ((intersectionGDF['DU'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
 
-        GDF = intersectionGDF
+            # Experimenting with code from Aaron
+            """ 
+            ### Latest grid specifications for TEMPO L3 products as of 12/2022
+            ## 0.05 degree grid spacing
+            minlat, maxlat = 17.025, 63.975
+            minlon, maxlon = -154.975, -24.475
+            gridres = 0.05
 
-        print("Finish intersection calculations.")
+            flats = np.linspace(minlat,maxlat,num=int(((maxlat-minlat)/gridres)+1),endpoint=True)
+            flons = np.linspace(minlon,maxlon,num=int(((maxlon-minlon)/gridres)+1),endpoint=True)
+
+            numlats = len(flats)
+            numlons = len(flons)
+
+            gridlon = np.resize(flons,(numlats,numlons))
+            gridlat = np.resize(flats,(numlons,numlats))
+            gridlat = np.transpose(gridlat)
+
+            grid_fixed = geometry.GridDefinition(lons=gridlon,lats=gridlat)
+
+            ### Grid for pcolormesh plotting #################
+            flats_d = np.linspace(int(minlat-(gridres/2)),int(maxlat+(gridres/2)),num=int(((maxlat-minlat)/gridres)+2),endpoint=True)
+            flons_d = np.linspace(int(minlon-(gridres/2)),int(maxlon+(gridres/2)),num=int(((maxlon-minlon)/gridres)+2),endpoint=True)
+
+            print(flats_d)
+
+            #flats = np.linspace(beglat-(gridres/2),endlat-(gridres/2),num=((endlat-beglat)/gridres)+1,endpoint=True)
+            #flons = np.linspace(beglon+(gridres/2),endlon+(gridres/2),num=((endlon-beglon)/gridres)+1,endpoint=True)
+
+            numlats = len(flats_d)
+            numlons = len(flons_d)
+
+            gridlon_mesh = np.resize(flons_d,(numlats,numlons))
+            gridlat_mesh = np.resize(flats_d,(numlons,numlats))
+            gridlat_mesh = np.transpose(gridlat_mesh)
+            
+            gridlon_mesh = np.resize(gridlon_mesh, (2454340))
+            gridlat_mesh = np.resize(gridlat_mesh, (2454340))
+
+            print(gridlon_mesh)
+            print(gridlat_mesh)
+            print(np.shape(gridlon_mesh))
+            print(np.shape(gridlat_mesh))
+            """
+
+             
+            # Associate pixel polygons with product variables
+            polygonVar = get_vardata(tempoFile, product)
+            polygonVar = polygonVar['data']
+            polygonVar1D = np.array([])
+            for i in range(len(polygonVar)):
+                polygonVar1D = np.concatenate((polygonVar1D, polygonVar[i]))
+
+            # Create GeoDataFrame of pixel polygons
+            polygonDF = pd.DataFrame({'varP':polygonVar1D})
+            print(polygonDF)
+            polygonGDF = gpd.GeoDataFrame(polygonDF, geometry=grid_polygons, crs=geoContext.crs)
+
+            # Find pixel polygon with county intersections
+            intersectionGDF = gpd.overlay(polygonGDF, geoContext, how='union')
+            intersectionGDF = intersectionGDF.dropna(subset=['NAME'])
+            intersectionGDF = intersectionGDF.dropna(subset=['varP'])
+
+            # Convert DU to PPM
+            #intersectionGDF["varP_PPM"] = intersectionGDF['varP'] / 2690
+            
+            # Convert DU to PPB
+            intersectionGDF["varP_PPB"] = ((intersectionGDF['varP'] * (2.69 * (10 ** 16))) / 200000) / (2.46 * (10 ** 10))
+            
+            GDF = intersectionGDF
+
+            GDF = counties
+
+            print("Finish intersection calculations.")
 
 
     ##################################################################
@@ -324,30 +452,22 @@ def main():
         print("Calculating mean...")
         # Group rows by county and calculate mean of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].mean()
-
-        # Combines instances of each county into one row
-        # Applys statistic to DU and PPB rows
-        # Converts lat and lon point values into lists of all points within a given county
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'mean', 'PPB':'mean', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='mean')
 
     if (statsType == "max"):
         print("Calculating max...")
         # Group rows by county and calculate max of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].max()
-        #GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='max')
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'max', 'PPB':'max', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='mean')
         
     if (statsType == "median"):
         print("Calculating max...")
         # Group rows by county and calculate max of variable for each county
         #GDF = GDF.groupby(['STATEFP', 'COUNTYFP', 'NAME'])['varP', 'varP_PPM'].max()
-        #GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='median')
-        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME', 'PRODUCT'], aggfunc={'DU':'median', 'PPB':'median', 'LAT': lambda x: x.tolist(), 'LON': lambda x: x.tolist()})
+        GDF = GDF.dissolve(by=['STATEFP', 'COUNTYFP', 'NAME'], aggfunc='median')
 
     print(GDF.head())
 
-
-    GDF = GDF.rename(columns={"geometry": "COUNTY_GEOMETRY", "LAT": "LAT_POINTS", "LON": "LON_POINTS"})
     
     ##################################################################
     ### Outputs
@@ -356,7 +476,7 @@ def main():
     currentTime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
 
     # Output data as csv
-    raw.to_csv(saveDir + "raw_out.csv")
+    #raw.to_csv(saveDir + "raw_out.csv")
     #polygonGDF.to_csv(saveDir + "polygons.csv")
     GDF.to_csv(saveDir + "output__" + statsType + currentTime +".csv")
 
@@ -369,8 +489,9 @@ def main():
     
     # Plot Pixel polygons
     if smooth:
-        #plot(pixel_polygons)
-        plot2(polygonGDF)
+        print("Plot...")
+        #plot(piexl_polygons)
+        #plot2(polygonGDF)
 
 
 ##################################################################
@@ -437,8 +558,13 @@ def plot(polygons):
 
     plt.show()
 
+# Get latitude and longitude from .nc file
 def get_latlon(data,iprod, type):
     print ('***** PROCESSING FILE ******* ')
+    print(data)
+
+    fill = -1.267651e+30
+
     #print (data)
     ncfile = Dataset(data,'r')
  # Read geolocation group
@@ -446,7 +572,7 @@ def get_latlon(data,iprod, type):
     #print("geo = ")
     #print(geo)
 
-    if(type == "center"):
+    if(type == "center" and level == 2):
     # if iprod != 'O3PROF':
     # For pcolormesh plot, read SW lat/lon bounds
         lat = geo.variables['latitude']
@@ -461,6 +587,17 @@ def get_latlon(data,iprod, type):
         #lon = lon[:,:,0]
         lon = lon[:,:]
 
+        lon[np.isnan(lon)] = fill
+
+    if(type == "center" and level == 3):
+    # if iprod != 'O3PROF':
+    # For pcolormesh plot, read SW lat/lon bounds
+        lat = ncfile.variables['latitude']
+        lat = lat[:]
+        lat[np.isnan(lat)] = fill
+
+        lon = ncfile.variables['longitude']
+        lon = lon[:]
         lon[np.isnan(lon)] = fill
 
     if(type == "corner"):
@@ -492,32 +629,56 @@ def get_latlon(data,iprod, type):
     return {'lat':lat,'lon':lon,'sza':sza}
 
 
-
+# Get product data from .nc file
 def get_vardata(data,iprod):
     print ('***** VALID FILE ******* ')
     ncfile = Dataset(data,'r')
 # Read group and variable based on input argument
-    vars = ncfile.groups['product']
-    support = ncfile.groups['support_data']
-    if iprod == 'HCHO' or iprod == 'SO2' or iprod == 'H2O':
-        varget = vars.variables['vertical_column']
-        fill = varget._FillValue
-    if iprod == 'NO2':
-        if coltype == 'trop' or coltype == 'total':
-            varget = vars.variables['vertical_column_troposphere']
-        if coltype == 'strat':
-            varget = vars.variables['vertical_column_stratosphere']
-        fill = varget._FillValue
-    if iprod == 'O3PROF':
-        if coltype == 'total':
-            varget = vars.variables['total_ozone_column']
-        if coltype == 'pbl':
-            varget = vars.variables['ozone_profile']
-        if coltype == 'trop':
-            varget = vars.variables['troposphere_ozone_column']
-        if coltype == 'strat':
-            varget = vars.variables['stratosphere_ozone_column']
-        fill = varget._FillValue       
+    if level == 2:
+        vars = ncfile.groups['product']
+        support = ncfile.groups['support_data']
+        if iprod == 'HCHO' or iprod == 'SO2' or iprod == 'H2O':
+            varget = vars.variables['vertical_column']
+            fill = varget._FillValue
+        if iprod == 'NO2':
+            if coltype == 'trop' or coltype == 'total':
+                varget = vars.variables['vertical_column_troposphere']
+            if coltype == 'strat':
+                varget = vars.variables['vertical_column_stratosphere']
+            fill = varget._FillValue
+        if iprod == 'O3PROF':
+            if coltype == 'total':
+                varget = vars.variables['total_ozone_column']
+            if coltype == 'pbl':
+                varget = vars.variables['ozone_profile']
+            if coltype == 'trop':
+                varget = vars.variables['troposphere_ozone_column']
+            if coltype == 'strat':
+                varget = vars.variables['stratosphere_ozone_column']
+            fill = varget._FillValue
+    if level == 3:
+        vars = ncfile.groups['product']
+        support = ncfile.groups['support_data']
+        if iprod == 'HCHO' or iprod == 'SO2' or iprod == 'H2O':
+            varget = vars.variables['vertical_column']
+            fill = varget._FillValue
+        if iprod == 'NO2':
+            if coltype == 'trop' or coltype == 'total':
+                varget = vars.variables['vertical_column_troposphere']
+            if coltype == 'strat':
+                varget = vars.variables['vertical_column_stratosphere']
+            fill = varget._FillValue
+        if iprod == 'O3PROF':
+            if coltype == 'total':
+                varget = vars.variables['total_ozone_column']
+            if coltype == 'pbl':
+                varget = vars.variables['ozone_profile']
+            if coltype == 'trop':
+                varget = vars.variables['troposphere_ozone_column']
+            if coltype == 'strat':
+                varget = vars.variables['stratosphere_ozone_column']
+            fill = varget._FillValue
+
 
 # Numpy array
     var = varget[:]
@@ -614,6 +775,7 @@ def get_vardata(data,iprod):
 
     return {'data':var,'long_name':long_name}
 
+
 # Debug function for writing array out to file
 def arrayToFile(array, filename):
     saveDir = "/home/ghost/Obsidian Vault/Work/Research Position/outputs/"
@@ -622,14 +784,15 @@ def arrayToFile(array, filename):
     file.close()
 
 
+# Testing
 def testing():
 
     print("@ testing...")
 
 
     sys.path.insert(0,'/home/ghost/Obsidian Vault/Work/Research Position/TEMPO Proxy Codes/')
-    import colormap_generator
-    import colormaps as cmaps
+    #import colormap_generator
+    #import colormaps as cmaps
 
 
     gridres = 0.05
